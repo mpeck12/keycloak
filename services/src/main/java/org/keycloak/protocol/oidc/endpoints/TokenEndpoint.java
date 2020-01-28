@@ -912,6 +912,21 @@ public class TokenEndpoint {
             responseBuilder.getRefreshToken().issuedFor(client.getClientId());
         }
 
+        // KEYCLOAK-6771 Certificate Bound Token
+        // https://tools.ietf.org/html/draft-ietf-oauth-mtls-08#section-3
+        if (OIDCAdvancedConfigWrapper.fromClientModel(client).isUseMtlsHokToken()) {
+            AccessToken.CertConf certConf = MtlsHoKTokenUtil.bindTokenWithClientCertificate(request, session);
+            if (certConf != null) {
+                responseBuilder.getAccessToken().setCertConf(certConf);
+                if (responseBuilder.getRefreshToken() != null) {
+                    responseBuilder.getRefreshToken().setCertConf(certConf);
+                }
+            } else {
+                event.error(Errors.INVALID_REQUEST);
+                throw new CorsErrorResponseException(cors, OAuthErrorException.INVALID_REQUEST, "Client Certification missing for MTLS HoK Token Binding", Response.Status.BAD_REQUEST);
+            }
+        }
+
         String scopeParam = clientSessionCtx.getClientSession().getNote(OAuth2Constants.SCOPE);
         if (TokenUtil.isOIDCRequest(scopeParam)) {
             responseBuilder.generateIDToken();
